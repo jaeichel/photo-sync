@@ -1,0 +1,6 @@
+node_modules/*
+*.sqlite
+oauth.json
+photo-sync-linux
+photo-sync-macos
+photo-sync-win.exe

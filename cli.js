@@ -46,7 +46,12 @@ const runCli = server => {
   } else if (argv.backup) {
     const uri = `${serverPrefix}/backup`
     console.log(uri)
-    request.post(uri, { json: {} }, (err, res, body) => {
+    request({
+      uri,
+      timeout: 3600000,
+      body: '{}',
+      method: 'POST'
+    }, (err, res, body) => {
       server.close()
       if (err) {
         console.error(err)
@@ -57,7 +62,12 @@ const runCli = server => {
   } else if (argv.restore && argv.database) {
     const uri = `${serverPrefix}/restore/database`
     console.log(uri)
-    request.post(uri, { json: {} }, (err, res, body) => {
+    request({
+      uri,
+      timeout: 3600000,
+      body: '{}',
+      method: 'POST'
+    }, (err, res, body) => {
       server.close()
       if (err) {
         console.error(err)
@@ -68,11 +78,14 @@ const runCli = server => {
   } else if (argv.restore && argv.downloads) {
     let uri = `${serverPrefix}/restore/downloads`
     console.log(uri)
-    request.post(uri, {
-      json: {
+    request({
+      uri,
+      timeout: 3600000,
+      body: JSON.stringify({
         dirpath: argv.dirpath,
         albumId: argv.albumId
-      }
+      }),
+      method: 'POST'
     }, (err, res, body) => {
       server.close()
       if (err) {

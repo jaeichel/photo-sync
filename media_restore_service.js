@@ -1,5 +1,7 @@
 const express = require('express')
+const fs = require('fs')
 const request = require('request')
+const path = require('path')
 var serverPrefix = 'http://localhost'
 
 const getAllGoogleAlbums = (pageToken) => {
@@ -156,12 +158,111 @@ const restoreDatabaseFromGoogle = async () => {
   }
 }
 
+const findMediaItems = (albumId, offset) => {
+  let uri = `${serverPrefix}/mediaItems?count=100`
+  if (albumId) {
+    uri += `&albumId=${encodeURIComponent(albumId)}`
+  }
+  if (offset) {
+    uri += `&offset=${encodeURIComponent(offset)}`
+  }
+  return new Promise((resolve, reject) => request.get(uri, async (err, resp, body) => {
+    if (err) {
+      reject(err)
+      return
+    }
+
+    const json = JSON.parse(body)
+
+    var nextMediaItems
+    if (json.length > 0) {
+      if (offset) {
+        nextMediaItems = await findMediaItems(albumId, offset + 100)
+      } else {
+        nextMediaItems = await findMediaItems(albumId, 100)
+      }
+    }
+
+    const mediaItems = json
+    if (nextMediaItems) {
+      mediaItems.push.apply(mediaItems, nextMediaItems)
+    }
+
+    resolve(mediaItems)
+  }))
+}
+
+const updateDatabaseMediaItem = (id, values) => {
+  return new Promise((resolve, reject) => request.put(`${serverPrefix}/mediaItems/${encodeURIComponent(id)}`, {
+    json: values
+  }, (err, res, body) => {
+    if (err) {
+      reject(err)
+      return
+    }
+    resolve(body)
+  }))
+}
+
+const restoreDownloads = async (dirpath, albumId) => {
+  const mediaItems = await findMediaItems(albumId)
+
+  for (let i in mediaItems) {
+    const mediaItem = mediaItems[i]
+
+    let mediaFilepath = mediaItem.filekey.split('/')
+    mediaFilepath[0] = mediaFilepath[0].replace(' - ', '/')
+    mediaFilepath = mediaFilepath.join('/')
+    const filepath = path.join(dirpath, mediaFilepath)
+
+    if (!fs.existsSync(path.dirname(filepath))) {
+      fs.mkdirSync(path.dirname(filepath))
+    }
+
+    mediaItem.filepath = filepath
+
+    if (!fs.existsSync(filepath)) {
+      const uri = `${serverPrefix}/google/mediaItems/download`
+      const promise = new Promise((resolve, reject) => request({
+        uri,
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify(mediaItem),
+        method: 'POST'
+      }, (err, res, body) => {
+        if (err) {
+          reject(err)
+          return
+        }
+        resolve(body)
+      }))
+      await promise
+      console.log(filepath)
+    }
+    updateDatabaseMediaItem(mediaItem.id, mediaItem)
+  }
+}
+
 const createRouter = () => {
   const router = express.Router()
 
-  router.post('/', async (req, res) => {
-    restoreDatabaseFromGoogle()
-    res.send('syncing...')
+  router.post('/database', async (req, res) => {
+    await restoreDatabaseFromGoogle()
+    res.send('done')
+  })
+
+  router.post('/downloads', async (req, res) => {
+    const { dirpath } = req.body
+    const { albumId } = req.body
+
+    if (!dirpath) {
+      res.status(500).send('error: dirpath not specified')
+      return
+    }
+
+    await restoreDownloads(dirpath, albumId)
+    res.send('done')
   })
 
   return router

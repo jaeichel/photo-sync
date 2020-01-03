@@ -221,6 +221,60 @@ const createMediaItemRouter = oauth2Client => {
     return promise
   })
 
+  router.post('/download', async (req, res) => {
+    const mediaItem = req.body
+
+    let uri = `https://photoslibrary.googleapis.com/v1/mediaItems/${mediaItem.googleId}`
+
+    let headers = await oauth2Client.getRequestHeaders()
+    const promise = new Promise((resolve, reject) => request({
+      uri,
+      headers,
+      method: 'GET'
+    }, (err, resp, body) => {
+      if (err) {
+        reject(err)
+        return
+      }
+      resolve(JSON.parse(body))
+    }))
+    const response = await promise
+    const baseUrl = response.baseUrl
+
+    headers = await oauth2Client.getRequestHeaders()
+    const promise2 = new Promise((resolve, reject) => request({
+      uri: baseUrl,
+      headers,
+      method: 'HEAD'
+    }, async (err, res2, body) => {
+      if (err) {
+        reject(err)
+        return
+      }
+      const contentType = res2.headers['content-type']
+      const contentLength = res2.headers['content-length']
+
+      const headers = await oauth2Client.getRequestHeaders()
+      request({
+        uri: baseUrl,
+        headers,
+        method: 'GET'
+      }).pipe(fs.createWriteStream(mediaItem.filepath)).on('close', (err, res3) => {
+        if (err) {
+          reject(err)
+          return
+        }
+        res.send({
+          contentType,
+          contentLength,
+          filepath: mediaItem.filepath
+        })
+        resolve(res3)
+      })
+    }))
+    return promise2
+  })
+
   return router
 }
 

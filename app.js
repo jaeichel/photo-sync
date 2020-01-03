@@ -1,12 +1,12 @@
 const express = require('express')
 const bodyParser = require('body-parser')
-const { promisify } = require('util')
 
 const initializeDatabase = require('./database')
 const { initializeGooglePhotoApi } = require('./google_photo_api')
 const { initializeOauth2Client, getOauth2Client } = require('./google_oauth')
 const { initializeMediaRestoreService } = require('./media_restore_service')
 const { initializeMediaBackupService } = require('./media_backup_service')
+const { initializeCli, runCli } = require('./cli')
 
 const serverPort = process.env.SERVER_PORT || 3000
 
@@ -27,10 +27,12 @@ const startServer = async () => {
   await initializeGooglePhotoApi(app, getOauth2Client())
   await initializeMediaRestoreService(app, redirectUriPrefix)
   await initializeMediaBackupService(app, redirectUriPrefix)
+  await initializeCli(redirectUriPrefix)
 
-  await promisify(app.listen).bind(app)(serverPort)
-
-  console.log(`Listening on port ${serverPort}`)
+  const server = app.listen(serverPort, () => {
+    console.log(`Listening on port ${serverPort}`)
+    runCli(server)
+  })
 }
 
 startServer()

@@ -311,7 +311,7 @@ const createRouter = () => {
         // await createPhotoSource('file://C:/Users/jaeic/Downloads/photos')
       }
     }).then(() => processPhotoSources())
-    res.send('syncing...')
+      .then(() => res.send('done'))
   })
 
   return router
